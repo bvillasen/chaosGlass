@@ -27,13 +27,17 @@ sys.path.extend( [toolsDirectory, animation2DDirectory] )
 import animation2D
 from cudaTools import setCudaDevice, getFreeMemory, gpuArray2DtocudaArray
 
+precision = "double"
+
 useDevice = None
 for option in sys.argv:
-  #if option == "128" or option == "256": nPoints = int(option)
+  if option == "float": precision = "float"
   if option.find("device=") != -1: useDevice = int(option[-1]) 
 
+npPrcsn = np.float64 if precision=="double" else np.float32
+
 nWidth = 1024
-nHeight = 256 
+nHeight = 256*2 
 nData = nWidth*nHeight
 
 #Set upper and lower limits for plotting
@@ -62,9 +66,9 @@ cudaDevice = setCudaDevice( devN=useDevice, usingAnimation=True )
 #Read and compile CUDA code
 print "Compiling CUDA code"
 cudaCodeFile = open("CUDAchaosGlass.cu","r")
-cudaCodeString = cudaCodeFile.read() 
-cudaCodeStringComplete = cudaCodeString
-cudaCode = SourceModule(cudaCodeStringComplete)
+cudaCodeStringRaw = cudaCodeFile.read() 
+cudaCodeString = (cudaCodeStringRaw %{"HEIGHT":mapBlock[1]}).replace("cudaP", precision)
+cudaCode = SourceModule(cudaCodeString)
 mappingKernel = cudaCode.get_function('mapping_kernel')
 maskKernel = cudaCode.get_function('mask_kernel')
 plotKernel = cudaCode.get_function('plot_kernel')
@@ -72,12 +76,12 @@ plotKernel = cudaCode.get_function('plot_kernel')
 #Initialize all gpu data
 print "Initializing Data"
 initialMemory = getFreeMemory( show=True )  
-random_d = curandom.rand((nData), dtype=np.float64) 
-graphPoints_d= gpuarray.to_gpu( np.zeros([nData], dtype=np.float64) ) 	
+random_d = curandom.rand((nData), dtype=npPrcsn) 
+graphPoints_d= gpuarray.to_gpu( np.zeros([nData], dtype=npPrcsn) ) 	
 #For plotting
 maskPoints_h = np.ones(nData).astype(np.int32)
 maskPoints_d = gpuarray.to_gpu( maskPoints_h )
-plotData_d = gpuarray.to_gpu( np.zeros([nData], dtype=np.float64) )
+plotData_d = gpuarray.to_gpu( np.zeros([nData], dtype=npPrcsn) )
 finalMemory = getFreeMemory( show=False )
 print " Total Global Memory Used: {0} Mbytes".format(float(initialMemory-finalMemory)/1e6) 
 
@@ -94,8 +98,8 @@ def replot():
   print "Reploting: ( {0} , {1} , {2} , {3} )".format(xMin, xMax, yMin, yMax)
   start, end = cuda.Event(), cuda.Event()
   start.record()
-  random_d = curandom.rand((nData), dtype=np.float64)
-  mappingKernel( np.int32(nWidth), np.int32(nHeight), np.float64(xMin), np.float64(xMax), np.float64(yMin), np.float64(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+  random_d = curandom.rand((nData), dtype=npPrcsn)
+  mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
   end.record()
   end.synchronize()
   print " Map Calculated in: %f secs\n" %( start.time_till(end)*1e-3)
@@ -104,7 +108,7 @@ def replot():
   maskFunc()
   
 def caosGlassFrame():
-  #mappingKernel( np.int32(nWidth), np.int32(nHeight), np.float64(xMin), np.float64(xMax), np.float64(yMin), np.float64(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+  #mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
   return 0
 
 def maskFunc():
@@ -112,12 +116,12 @@ def maskFunc():
   iMin, iMax = np.int32(animation2D.iMin), np.int32(animation2D.iMax)
   plotKernel( jMin, jMax, iMin, iMax, graphPoints_d, maskPoints_d, plotData_d, grid=grid2D, block=block2D  )
 
-mappingKernel( np.int32(nWidth), np.int32(nHeight), np.float64(xMin), np.float64(xMax), np.float64(yMin), np.float64(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
 plotKernel( np.int32(jMin), np.int32(jMax), np.int32(iMin), np.int32(iMax), graphPoints_d, maskPoints_d, plotData_d, grid=grid2D, block=block2D  )
 
 #configure animation2D stepFunction and plotData
 animation2D.stepFunc = caosGlassFrame
-animation2D.usingDouble = True
+if precision=="double": animation2D.usingDouble = True
 animation2D.plotData_d = plotData_d
 animation2D.backgroundType = "square"
 animation2D.mouseMaskFunc = maskFunc
