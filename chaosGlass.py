@@ -31,13 +31,14 @@ precision = "double"
 
 useDevice = None
 for option in sys.argv:
+  if option == "gray": animation2D.usingGrayScale = True
   if option == "float": precision = "float"
   if option.find("device=") != -1: useDevice = int(option[-1]) 
 
 npPrcsn = np.float64 if precision=="double" else np.float32
 
 nWidth = 1024
-nHeight = 256*2 
+nHeight = 256*2
 nData = nWidth*nHeight
 
 #Set upper and lower limits for plotting
@@ -57,7 +58,7 @@ gridx = nWidth // block_size_x + 1 * ( nWidth % block_size_x != 0 )
 gridy = nHeight // block_size_y + 1 * ( nHeight % block_size_y != 0 )
 grid2D = (gridx, gridy, 1)
 block2D = (block_size_x, block_size_y, 1)
-mapBlock = ( 1, nHeight, 1 )
+mapBlock = ( nHeight, 1, 1 )
 mapGrid = ( nWidth, 1, 1 )
 
 #initialize pyCUDA context 
@@ -67,11 +68,16 @@ cudaDevice = setCudaDevice( devN=useDevice, usingAnimation=True )
 print "Compiling CUDA code"
 cudaCodeFile = open("CUDAchaosGlass.cu","r")
 cudaCodeStringRaw = cudaCodeFile.read() 
-cudaCodeString = (cudaCodeStringRaw %{"HEIGHT":mapBlock[1]}).replace("cudaP", precision)
+cudaCodeString = (cudaCodeStringRaw %{"HEIGHT":mapBlock[0]}).replace("cudaP", precision)
 cudaCode = SourceModule(cudaCodeString)
-mappingKernel = cudaCode.get_function('mapping_kernel')
+mappingLogisticKernel = cudaCode.get_function('mappingLogistic_kernel')
 maskKernel = cudaCode.get_function('mask_kernel')
 plotKernel = cudaCode.get_function('plot_kernel')
+########################################################################
+from pycuda.elementwise import ElementwiseKernel
+########################################################################
+linearDouble = ElementwiseKernel(arguments="double a, double b, double *input, double *output",
+				operation = "output[i] = a*input[i] + b ")
 
 #Initialize all gpu data
 print "Initializing Data"
@@ -99,7 +105,8 @@ def replot():
   start, end = cuda.Event(), cuda.Event()
   start.record()
   random_d = curandom.rand((nData), dtype=npPrcsn)
-  mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+  mappingLogisticKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+  normalize( graphPoints_d )
   end.record()
   end.synchronize()
   print " Map Calculated in: %f secs\n" %( start.time_till(end)*1e-3)
@@ -111,12 +118,18 @@ def caosGlassFrame():
   #mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
   return 0
 
+def normalize( data ):
+  maxVal = gpuarray.max(data).get()
+  linearDouble(1./maxVal, np.float64(0.), data, data )
+  
+
 def maskFunc():
   jMin, jMax = np.int32(animation2D.jMin), np.int32(animation2D.jMax)
   iMin, iMax = np.int32(animation2D.iMin), np.int32(animation2D.iMax)
   plotKernel( jMin, jMax, iMin, iMax, graphPoints_d, maskPoints_d, plotData_d, grid=grid2D, block=block2D  )
 
-mappingKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+mappingLogisticKernel( np.int32(nWidth), np.int32(nHeight), npPrcsn(xMin), npPrcsn(xMax), npPrcsn(yMin), npPrcsn(yMax), random_d, graphPoints_d, grid=mapGrid, block=mapBlock )
+normalize( graphPoints_d )
 plotKernel( np.int32(jMin), np.int32(jMax), np.int32(iMin), np.int32(iMax), graphPoints_d, maskPoints_d, plotData_d, grid=grid2D, block=block2D  )
 
 #configure animation2D stepFunction and plotData
