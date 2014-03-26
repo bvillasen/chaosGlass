@@ -1,10 +1,13 @@
 #include <stdint.h>
 #include <cuda.h>
 
+#define PI 3.14159265359
+
 // #define HEIGHT 256
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-__global__ void mappingLogistic_kernel( const int nWidth, const int nHeight, cudaP xMin, cudaP xMax, cudaP yMin, cudaP yMax,cudaP *startingPoints, cudaP *graphPoints ){
+__global__ void mappingLogistic_kernel( const int nWidth, const int nHeight, cudaP xMin, cudaP xMax,
+					cudaP yMin, cudaP yMax,cudaP *startingPoints, cudaP *graphPoints ){
   int tid = blockIdx.x + threadIdx.x*gridDim.x;
   
   __shared__ unsigned int mappedPoints[ %(HEIGHT)s ];
@@ -29,6 +32,7 @@ __global__ void mappingLogistic_kernel( const int nWidth, const int nHeight, cud
   else value = 0.0f;
   graphPoints[tid] = value;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

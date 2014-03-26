@@ -23,7 +23,6 @@ parentDirectory = currentDirectory[:currentDirectory.rfind("/")]
 toolsDirectory = parentDirectory + "/tools"
 animation2DDirectory = parentDirectory + "/animation2D"
 sys.path.extend( [toolsDirectory, animation2DDirectory] )
-
 import animation2D
 from cudaTools import setCudaDevice, getFreeMemory, gpuArray2DtocudaArray
 
@@ -37,7 +36,7 @@ for option in sys.argv:
 
 npPrcsn = np.float64 if precision=="double" else np.float32
 
-nWidth = 1024
+nWidth = 512*2
 nHeight = 256*2
 nData = nWidth*nHeight
 
@@ -50,7 +49,7 @@ iMin, iMax = 10000, -1
 #Initialize openGL
 animation2D.nWidth = nWidth
 animation2D.nHeight = nHeight
-animation2D.initGL()
+#animation2D.initGL()
 
 #set thread grid for CUDA kernels
 block_size_x, block_size_y  = 16, 16   #hardcoded, tune to your needs
@@ -62,13 +61,13 @@ mapBlock = ( nHeight, 1, 1 )
 mapGrid = ( nWidth, 1, 1 )
 
 #initialize pyCUDA context 
-cudaDevice = setCudaDevice( devN=useDevice, usingAnimation=True )
+cudaDevice = setCudaDevice( devN=useDevice, usingAnimation=False )
 
 #Read and compile CUDA code
 print "Compiling CUDA code"
 cudaCodeFile = open("CUDAchaosGlass.cu","r")
 cudaCodeStringRaw = cudaCodeFile.read() 
-cudaCodeString = (cudaCodeStringRaw %{"HEIGHT":mapBlock[0]}).replace("cudaP", precision)
+cudaCodeString = (cudaCodeStringRaw %{"HEIGHT":mapBlock[0], "B_HEIGHT":block2D[1], "B_WIDTH":block2D[0] }).replace("cudaP", precision)
 cudaCode = SourceModule(cudaCodeString)
 mappingLogisticKernel = cudaCode.get_function('mappingLogistic_kernel')
 maskKernel = cudaCode.get_function('mask_kernel')
