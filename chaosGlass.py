@@ -109,6 +109,7 @@ def replot():
   end.record()
   end.synchronize()
   print " Map Calculated in: %f secs\n" %( start.time_till(end)*1e-3)
+  animation2D.windowTitle = "ploting [ ( {0} , {1} ), ( {2} , {3} ) ]".format(xMin, xMax, yMin, yMax)
   animation2D.jMin, animation2D.jMax = 10000, -1
   animation2D.iMin, animation2D.iMax = 10000, -1
   maskFunc()
@@ -138,6 +139,8 @@ animation2D.plotData_d = plotData_d
 animation2D.backgroundType = "square"
 animation2D.mouseMaskFunc = maskFunc
 animation2D.replotFunc = replot
+animation2D.windowTitle = "ploting [ ( {0} , {1} ), ( {2} , {3} ) ]".format(xMin, xMax, yMin, yMax)
+
 
 #run animation
 animation2D.animate()
