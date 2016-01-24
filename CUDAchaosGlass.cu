@@ -16,8 +16,8 @@ __global__ void mappingLogistic_kernel( const int nWidth, const int nHeight, cud
   
   cudaP val = startingPoints[ threadIdx.x + blockIdx.x*blockDim.x];
   cudaP k = (xMax - xMin)/(nWidth-1)*blockIdx.x + xMin;
-  int nValues = 1000;
-  cudaP yFactor = double(nHeight)/(yMax-yMin);
+  int nValues = 1500;
+  cudaP yFactor = cudaP(nHeight)/(yMax-yMin);
   int yPix;
   for (int i=0; i<100000; i++) val =  k*val*(1-val); //Tranciente
   for (int i=0; i<nValues; i++ ){
@@ -28,7 +28,7 @@ __global__ void mappingLogistic_kernel( const int nWidth, const int nHeight, cud
     val =  k*val*(1-val);
   }
   cudaP value;
-  if (mappedPoints[threadIdx.x]>=1) value = log(double(mappedPoints[threadIdx.x]));
+  if (mappedPoints[threadIdx.x]>=1) value = log(cudaP(mappedPoints[threadIdx.x]));
   else value = 0.0f;
   graphPoints[tid] = value;
 }

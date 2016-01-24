@@ -36,8 +36,8 @@ for option in sys.argv:
 
 npPrcsn = np.float64 if precision=="double" else np.float32
 
-nWidth = 512*2
-nHeight = 256*2
+nWidth = 512*4
+nHeight = 256*4
 nData = nWidth*nHeight
 
 #Set upper and lower limits for plotting
@@ -75,7 +75,7 @@ plotKernel = cudaCode.get_function('plot_kernel')
 ########################################################################
 from pycuda.elementwise import ElementwiseKernel
 ########################################################################
-linearDouble = ElementwiseKernel(arguments="double a, double b, double *input, double *output",
+linearDouble = ElementwiseKernel(arguments="cudaP a, cudaP b, cudaP *input, cudaP *output".replace( 'cudaP', precision),
 				operation = "output[i] = a*input[i] + b ")
 
 #Initialize all gpu data
